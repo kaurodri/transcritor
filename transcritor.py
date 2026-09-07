@@ -7,6 +7,8 @@ Exemplos:
     python transcritor.py transcrever https://vm.tiktok.com/xxxx -o ./output --modelo small --idioma pt
     python transcritor.py transcrever ./audios/entrevista.mp3 --manter-audio
     python transcritor.py transcrever <url> --cookies cookies.txt
+    python transcritor.py comentarios https://www.youtube.com/watch?v=xxxx
+    python transcritor.py comentarios https://www.youtube.com/watch?v=xxxx --limite 50 --respostas
     python transcritor.py modelos
 """
 
@@ -15,9 +17,11 @@ import os
 import sys
 from urllib.parse import urlparse
 
+from transcritor.comentarios import baixar_comentarios_youtube
 from transcritor.download import baixar_audio
 from transcritor.transcrever import MODELOS_DISPONIVEIS, transcrever_audio
 from transcritor.utils import (
+    ComentariosFailedError,
     DownloadFailedError,
     EntradaInvalidaError,
     TranscricaoFailedError,
@@ -79,6 +83,44 @@ def cmd_transcrever(args: argparse.Namespace) -> None:
             limpar_temp(diretorio_temp, manter=args.keep_audio)
 
 
+def cmd_comentarios(args: argparse.Namespace) -> None:
+    if not eh_url(args.url):
+        raise EntradaInvalidaError("entrada inválida — não é uma URL HTTP(S) válida.")
+
+    comentarios, titulo = baixar_comentarios_youtube(
+        args.url,
+        limite=args.limite,
+        ordenar=args.ordenar,
+        incluir_respostas=args.respostas,
+    )
+
+    if not comentarios:
+        print("Nenhum comentário encontrado para este vídeo.")
+    elif args.verbose:
+        print(f"{len(comentarios)} comentário(s) extraído(s) do vídeo.")
+
+    raizes = [c for c in comentarios if c.get("parent", "root") == "root"]
+
+    linhas = []
+    for c in raizes:
+        autor = c.get("author") or "desconhecido"
+        texto = (c.get("text") or "").replace("\n", " ").strip()
+        linhas.append(f"{autor}: {texto}")
+        if args.respostas:
+            for r in comentarios:
+                if r.get("parent") == c.get("id"):
+                    autor_r = r.get("author") or "desconhecido"
+                    texto_r = (r.get("text") or "").replace("\n", " ").strip()
+                    linhas.append(f"  ↳ {autor_r}: {texto_r}")
+
+    caminho_saida = gerar_caminho_saida(titulo, args.output)
+    with open(caminho_saida, "w", encoding="utf-8") as f:
+        f.write("\n".join(linhas))
+        f.write("\n")
+
+    print(f"Comentários salvos em: {caminho_saida} ({len(raizes)} comentário(s) de topo)")
+
+
 def cmd_modelos(args: argparse.Namespace) -> None:
     print("Modelos disponíveis (faster-whisper):\n")
     for nome, tamanho, descricao in MODELOS_DISPONIVEIS:
@@ -138,6 +180,32 @@ def montar_parser() -> argparse.ArgumentParser:
     )
     p_transcrever.set_defaults(func=cmd_transcrever)
 
+    p_comentarios = subparsers.add_parser(
+        "comentarios", help="Baixa os comentários de um vídeo do YouTube para .txt."
+    )
+    p_comentarios.add_argument("url", help="URL de um vídeo do YouTube.")
+    p_comentarios.add_argument(
+        "-o", "--saida", dest="output", default="./output",
+        help="Diretório de saída ou caminho de arquivo .txt (padrão: ./output).",
+    )
+    p_comentarios.add_argument(
+        "--limite", dest="limite", type=int, default=None,
+        help="Máximo de comentários de topo a baixar (padrão: todos).",
+    )
+    p_comentarios.add_argument(
+        "--ordenar", dest="ordenar", default="top", choices=["top", "new"],
+        help="Ordem dos comentários: top (mais relevantes) ou new (mais recentes). Padrão: top.",
+    )
+    p_comentarios.add_argument(
+        "--respostas", dest="respostas", action="store_true",
+        help="Inclui respostas de cada comentário (indentadas). Padrão: só comentários de topo.",
+    )
+    p_comentarios.add_argument(
+        "-v", "--verbose", dest="verbose", action="store_true",
+        help="Mostra progresso da extração de comentários.",
+    )
+    p_comentarios.set_defaults(func=cmd_comentarios)
+
     p_modelos = subparsers.add_parser("modelos", help="Lista os tamanhos de modelo disponíveis.")
     p_modelos.set_defaults(func=cmd_modelos)
 
@@ -163,6 +231,9 @@ def main() -> None:
         print(f"Erro: {exc}", file=sys.stderr)
         sys.exit(1)
     except TranscricaoFailedError as exc:
+        print(f"Erro: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ComentariosFailedError as exc:
         print(f"Erro: {exc}", file=sys.stderr)
         sys.exit(1)
     except (OSError, PermissionError) as exc:
