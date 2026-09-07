@@ -23,6 +23,10 @@ class EntradaInvalidaError(Exception):
     """Levantada quando a entrada não é nem uma URL http(s) válida nem um arquivo existente."""
 
 
+class ComentariosFailedError(Exception):
+    """Levantada quando o yt-dlp falha ao extrair comentários de um vídeo."""
+
+
 def sanitizar_nome_arquivo(nome: str) -> str:
     """Remove caracteres inválidos em nomes de arquivo no Windows/Unix e limita o tamanho."""
     nome = (nome or "").strip()
