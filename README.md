@@ -3,6 +3,7 @@
 CLI em Python para baixar vídeos de qualquer site suportado pelo [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 (ou usar um arquivo de áudio já existente) e transcrever com
 [faster-whisper](https://github.com/SYSTRAN/faster-whisper), salvando o resultado em um arquivo `.txt`.
+Também baixa os comentários de vídeos do YouTube para `.txt`.
 
 ## Requisitos
 
@@ -39,10 +40,27 @@ python transcritor.py transcrever "<url>" --manter-audio
 
 # Listar modelos disponíveis
 python transcritor.py modelos
+
+# Baixar comentários de um vídeo do YouTube
+python transcritor.py comentarios "https://www.youtube.com/watch?v=xxxx"
+
+# Limitando quantidade, ordenando por mais recentes e incluindo respostas
+python transcritor.py comentarios "https://www.youtube.com/watch?v=xxxx" --limite 50 --ordenar new --respostas
 ```
 
-Por padrão a transcrição é salva em `./output/<título>.txt`. Se o arquivo já existir, um
-sufixo `_1`, `_2`, ... é adicionado automaticamente para não sobrescrever.
+Por padrão a transcrição/comentários são salvos em `./output/<título>.txt`. Se o arquivo já
+existir, um sufixo `_1`, `_2`, ... é adicionado automaticamente para não sobrescrever.
+
+### Comentários
+
+- Funciona apenas para **YouTube** — via `yt-dlp`, sem precisar de API key nem depender de
+  nenhuma lib extra.
+- Comentários do **TikTok não são suportados**: o yt-dlp não implementa extração de
+  comentários para TikTok, e as alternativas disponíveis (`pyktok`, `TikTokApi`) exigem
+  Playwright e um token de sessão de navegador (`ms_token`) frágil, que expira e quebra com
+  frequência — não é algo que dá pra prometer como confiável numa CLI.
+- Por padrão só baixa comentários de topo (mais rápido); use `--respostas` para incluir
+  também as respostas de cada comentário, indentadas com `↳`.
 
 ## Observações
 
